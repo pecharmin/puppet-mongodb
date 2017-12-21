@@ -34,7 +34,7 @@ Puppet::Type.type(:mongodb_user).provide(:mongodb, parent: Puppet::Provider::Mon
               ensure: :present,
               username: user['user'],
               database: user['db'],
-              roles: from_roles(user['roles'], user['db']),
+              roles: role_strings(user['roles'], user['db']),
               password_hash: user['credentials']['MONGODB-CR'])
         end
       end
