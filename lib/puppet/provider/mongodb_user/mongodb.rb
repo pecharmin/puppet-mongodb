@@ -35,7 +35,8 @@ Puppet::Type.type(:mongodb_user).provide(:mongodb, parent: Puppet::Provider::Mon
               username: user['user'],
               database: user['db'],
               roles: from_roles(user['roles'], user['db']),
-              password_hash: user['credentials']['MONGODB-CR'])
+              password_hash: user['credentials']['MONGODB-CR'],
+              scram_credentials: user['credentials']['SCRAM-SHA-1'])
         end
       end
     else
@@ -132,12 +133,12 @@ Puppet::Type.type(:mongodb_user).provide(:mongodb, parent: Puppet::Provider::Mon
   end
 
   def password=(value)
-    if mongo_24?
+    if mongo_24? || mongo_26?
       mongo_eval("db.changeUserPassword('#{@resource[:username]}','#{value}')", @resource[:database])
     else
       cmd_json = <<-EOS.gsub(%r{^\s*}, '').gsub(%r{$\n}, '')
       {
-          "updateuser": "#{@resource[:username]}",
+          "updateUser": "#{@resource[:username]}",
           "pwd": "#{@resource[:password]}",
           "digestpassword": true
       }
