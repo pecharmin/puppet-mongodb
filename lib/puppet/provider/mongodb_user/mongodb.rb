@@ -105,12 +105,15 @@ Puppet::Type.type(:mongodb_user).provide(:mongodb, parent: Puppet::Provider::Mon
 
   def roles=(roles)
     if db_ismaster
-      grant = roles - @property_hash[:roles]
+      current_roles = from_roles(roles, @resource[:database])
+      desired_roles = from_roles(@property_hash[:roles], @resource[:database])
+
+      grant = (current_roles-desired_roles)
       unless grant.empty?
         mongo_eval("db.getSiblingDB(#{@resource[:database].to_json}).grantRolesToUser(#{@resource[:username].to_json}, #{role_hashes(grant, @resource[:database]).to_json})")
       end
 
-      revoke = @property_hash[:roles] - roles
+      revoke = (desired_roles-current_roles)
       unless revoke.empty?
         mongo_eval("db.getSiblingDB(#{@resource[:database].to_json}).revokeRolesFromUser(#{@resource[:username].to_json}, #{role_hashes(revoke, @resource[:database]).to_json})")
       end
