@@ -107,12 +107,12 @@ Puppet::Type.type(:mongodb_user).provide(:mongodb, parent: Puppet::Provider::Mon
     if db_ismaster
       grant = roles - @property_hash[:roles]
       unless grant.empty?
-        mongo_eval("db.getSiblingDB(#{@resource[:database].to_json}).grantRolesToUser(#{@resource[:username].to_json}, #{grant.to_json})")
+        mongo_eval("db.getSiblingDB(#{@resource[:database].to_json}).grantRolesToUser(#{@resource[:username].to_json}, #{role_hashes(grant, @resource[:database]).to_json})")
       end
 
       revoke = @property_hash[:roles] - roles
       unless revoke.empty?
-        mongo_eval("db.getSiblingDB(#{@resource[:database].to_json}).revokeRolesFromUser(#{@resource[:username].to_json}, #{revoke.to_json})")
+        mongo_eval("db.getSiblingDB(#{@resource[:database].to_json}).revokeRolesFromUser(#{@resource[:username].to_json}, #{role_hashes(grant, @resource[:database]).to_json})")
       end
     else
       Puppet.warning 'User roles operations are available only from master host'
@@ -129,5 +129,21 @@ Puppet::Type.type(:mongodb_user).provide(:mongodb, parent: Puppet::Provider::Mon
         "#{entry['role']}@#{entry['db']}"
       end
     end.sort
+  end
+
+  def role_hashes(roles, db)
+    roles.sort.map do |entry|
+      if entry.include? '@'
+        {
+          'role' => entry.gsub(%r{^(.*)@.*$}, '\1'),
+          'db'   => entry.gsub(%r{^.*@(.*)$}, '\1')
+        }
+      else
+        {
+          'role' => entry,
+          'db'   => db
+        }
+      end
+    end
   end
 end
