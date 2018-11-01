@@ -5,7 +5,7 @@ require 'tempfile'
 describe Puppet::Type.type(:mongodb_user).provider(:mongodb) do
   let(:raw_users) do
     [
-      { '_id' => 'admin.root', 'user' => 'root', 'db' => 'admin', 'credentials' => { 'MONGODB-CR' => 'pass', 'SCRAM-SHA-1' => { 'iterationCount' => 10_000, 'salt' => 'salt', 'storedKey' => 'storedKey', 'serverKey' => 'serverKey' } }, 'roles' => [{ 'role' => 'role2', 'db' => 'admin' }, { 'role' => 'role1', 'db' => 'admin' }] }
+      { '_id' => 'admin.root', 'user' => 'root', 'db' => 'admin', 'credentials' => { 'MONGODB-CR' => 'pass', 'SCRAM-SHA-1' => { 'iterationCount' => 10_000, 'salt' => 'salt', 'storedKey' => 'storedKey', 'serverKey' => 'serverKey' } }, 'roles' => [{ 'role' => 'role2', 'db' => 'admin' }, { 'role' => 'role1', 'db' => 'other_db' }] }
     ].to_json
   end
 
@@ -17,7 +17,7 @@ describe Puppet::Type.type(:mongodb_user).provider(:mongodb) do
       name: 'new_user',
       database: 'new_database',
       password_hash: 'pass',
-      roles: %w[role1 role2],
+      roles: %w[role1@other_db role2],
       provider: described_class.name
     )
   end
@@ -56,7 +56,7 @@ describe Puppet::Type.type(:mongodb_user).provider(:mongodb) do
         "createUser":"new_user",
         "pwd":"pass",
         "customData":{"createdBy":"Puppet Mongodb_user['new_user']"},
-        "roles":["role1","role2"],
+        "roles":[{"role":"role1","db":"other_db"},{"role":"role2","db":"new_database"}],
         "digestPassword":false
       }
       EOS
@@ -114,38 +114,38 @@ describe Puppet::Type.type(:mongodb_user).provider(:mongodb) do
 
   describe 'roles' do
     it 'returns a sorted roles' do
-      expect(instance.roles).to eq(%w[role1 role2])
+      expect(instance.roles).to eq(%w[role1@other_db role2@admin])
     end
   end
 
   describe 'roles=' do
     it 'changes nothing' do
-      resource.provider.set(name: 'new_user', ensure: :present, roles: %w[role1 role2])
+      resource.provider.set(name: 'new_user', ensure: :present, roles: %w[role1@other_db role2])
       expect(provider).not_to receive(:mongo_eval)
-      provider.roles = %w[role1 role2]
+      provider.roles = %w[role1@other_db role2]
     end
 
     it 'grant a role' do
-      resource.provider.set(name: 'new_user', ensure: :present, roles: %w[role1 role2])
+      resource.provider.set(name: 'new_user', ensure: :present, roles: %w[role1@other_db role2])
       expect(provider).to receive(:mongo_eval).
-        with('db.getSiblingDB("new_database").grantRolesToUser("new_user", ["role3"])')
-      provider.roles = %w[role1 role2 role3]
+        with('db.getSiblingDB("new_database").grantRolesToUser("new_user", [{"role":"role3","db":"new_database"}])')
+      provider.roles = %w[role1@other_db role2 role3]
     end
 
     it 'revokes a role' do
-      resource.provider.set(name: 'new_user', ensure: :present, roles: %w[role1 role2])
+      resource.provider.set(name: 'new_user', ensure: :present, roles: %w[role1@other_db role2])
       expect(provider).to receive(:mongo_eval).
-        with('db.getSiblingDB("new_database").revokeRolesFromUser("new_user", ["role1"])')
+        with('db.getSiblingDB("new_database").revokeRolesFromUser("new_user", [{"role":"role1","db":"other_db"}])')
       provider.roles = ['role2']
     end
 
     # rubocop:disable RSpec/MultipleExpectations
     it 'exchanges a role' do
-      resource.provider.set(name: 'new_user', ensure: :present, roles: %w[role1 role2])
+      resource.provider.set(name: 'new_user', ensure: :present, roles: %w[role1@other_db role2])
       expect(provider).to receive(:mongo_eval).
-        with('db.getSiblingDB("new_database").revokeRolesFromUser("new_user", ["role1"])')
+        with('db.getSiblingDB("new_database").revokeRolesFromUser("new_user", [{"role":"role1","db":"other_db"}])')
       expect(provider).to receive(:mongo_eval).
-        with('db.getSiblingDB("new_database").grantRolesToUser("new_user", ["role3"])')
+        with('db.getSiblingDB("new_database").grantRolesToUser("new_user", [{"role":"role3","db":"new_database"}])')
 
       provider.roles = %w[role2 role3]
     end

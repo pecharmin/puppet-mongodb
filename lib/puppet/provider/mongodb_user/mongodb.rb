@@ -49,7 +49,7 @@ Puppet::Type.type(:mongodb_user).provide(:mongodb, parent: Puppet::Provider::Mon
         customData: {
           createdBy: "Puppet Mongodb_user['#{@resource[:name]}']"
         },
-        roles: @resource[:roles],
+        roles: role_hashes(@resource[:roles], @resource[:database]),
         digestPassword: false
       }
 
@@ -112,7 +112,7 @@ Puppet::Type.type(:mongodb_user).provide(:mongodb, parent: Puppet::Provider::Mon
 
       revoke = @property_hash[:roles] - roles
       unless revoke.empty?
-        mongo_eval("db.getSiblingDB(#{@resource[:database].to_json}).revokeRolesFromUser(#{@resource[:username].to_json}, #{role_hashes(grant, @resource[:database]).to_json})")
+        mongo_eval("db.getSiblingDB(#{@resource[:database].to_json}).revokeRolesFromUser(#{@resource[:username].to_json}, #{role_hashes(revoke, @resource[:database]).to_json})")
       end
     else
       Puppet.warning 'User roles operations are available only from master host'
@@ -124,7 +124,7 @@ Puppet::Type.type(:mongodb_user).provide(:mongodb, parent: Puppet::Provider::Mon
   def self.from_roles(roles, db)
     roles.map do |entry|
       if entry['db'] == db
-        entry['role']
+        "#{entry['role']}@#{db}"
       else
         "#{entry['role']}@#{entry['db']}"
       end
