@@ -105,15 +105,12 @@ Puppet::Type.type(:mongodb_user).provide(:mongodb, parent: Puppet::Provider::Mon
 
   def roles=(roles)
     if db_ismaster
-      current_roles = from_roles(roles, @resource[:database])
-      desired_roles = from_roles(@property_hash[:roles], @resource[:database])
-
-      grant = (current_roles-desired_roles)
+      grant = to_roles(roles, @resource[:database]) - to_roles(@property_hash[:roles], @resource[:database])
       unless grant.empty?
         mongo_eval("db.getSiblingDB(#{@resource[:database].to_json}).grantRolesToUser(#{@resource[:username].to_json}, #{role_hashes(grant, @resource[:database]).to_json})")
       end
 
-      revoke = (desired_roles-current_roles)
+      revoke = to_roles(@property_hash[:roles], @resource[:database]) - to_roles(roles, @resource[:database])
       unless revoke.empty?
         mongo_eval("db.getSiblingDB(#{@resource[:database].to_json}).revokeRolesFromUser(#{@resource[:username].to_json}, #{role_hashes(revoke, @resource[:database]).to_json})")
       end
@@ -126,12 +123,22 @@ Puppet::Type.type(:mongodb_user).provide(:mongodb, parent: Puppet::Provider::Mon
 
   def self.from_roles(roles, db)
     roles.map do |entry|
-      if entry['db'] == db
+      if entry['db'].empty?
         "#{entry['role']}@#{db}"
       else
         "#{entry['role']}@#{entry['db']}"
       end
     end.sort
+  end
+
+  def to_roles(roles, db)
+    roles.map do |entry|
+      if entry.include? '@'
+        entry
+      else
+        "#{entry}@#{db}"
+      end
+    end
   end
 
   def role_hashes(roles, db)
