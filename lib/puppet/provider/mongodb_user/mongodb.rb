@@ -153,14 +153,14 @@ Puppet::Type.type(:mongodb_user).provide(:mongodb, parent: Puppet::Provider::Mon
       if mongo_24?
         mongo_eval("db.system.users.update({user:'#{@resource[:username]}'}, { $set: {roles: #{@resource[:roles].to_json}}})")
       else
-        grant = roles - @property_hash[:roles]
+        grant = to_roles(roles, @resource[:database]) - to_roles(@property_hash[:roles], @resource[:database])
         unless grant.empty?
-          mongo_eval("db.getSiblingDB('#{@resource[:database]}').grantRolesToUser('#{@resource[:username]}', #{grant. to_json})")
+          mongo_eval("db.getSiblingDB(#{@resource[:database].to_json}).grantRolesToUser(#{@resource[:username].to_json}, #{role_hashes(grant, @resource[:database]).to_json})")
         end
 
-        revoke = @property_hash[:roles] - roles
+        revoke = to_roles(@property_hash[:roles], @resource[:database]) - to_roles(roles, @resource[:database])
         unless revoke.empty?
-          mongo_eval("db.getSiblingDB('#{@resource[:database]}').revokeRolesFromUser('#{@resource[:username]}', #{revoke.to_json})")
+          mongo_eval("db.getSiblingDB(#{@resource[:database].to_json}).revokeRolesFromUser(#{@resource[:username].to_json}, #{role_hashes(revoke, @resource[:database]).to_json})")
         end
       end
     else
@@ -172,11 +172,37 @@ Puppet::Type.type(:mongodb_user).provide(:mongodb, parent: Puppet::Provider::Mon
 
   def self.from_roles(roles, db)
     roles.map do |entry|
-      if entry['db'] == db
+      if entry['db'].empty? || entry['db'] == db
         entry['role']
       else
         "#{entry['role']}@#{entry['db']}"
       end
     end.sort
+  end
+
+  def to_roles(roles, db)
+    roles.map do |entry|
+      if entry.include? '@'
+        entry
+      else
+        "#{entry}@#{db}"
+      end
+    end
+  end
+
+  def role_hashes(roles, db)
+    roles.sort.map do |entry|
+      if entry.include? '@'
+        {
+          'role' => entry.gsub(%r{^(.*)@.*$}, '\1'),
+          'db'   => entry.gsub(%r{^.*@(.*)$}, '\1')
+        }
+      else
+        {
+          'role' => entry,
+          'db'   => db
+        }
+      end
+    end
   end
 end
