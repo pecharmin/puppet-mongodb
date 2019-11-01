@@ -81,7 +81,7 @@ Puppet::Type.type(:mongodb_user).provide(:mongodb, parent: Puppet::Provider::Mon
 	  "createUser": "#{@resource[:username]}",
 	  "pwd": "#{password_hash}",
 	  "customData": {"createdBy": "Puppet Mongodb_user['#{@resource[:name]}']"},
-	  "roles": #{@resource[:roles].to_json},
+	  "roles": #{role_hashes(@resource[:roles], @resource[:database]).to_json},
 	  "digestPassword": false
 	}
 	EOS
